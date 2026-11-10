@@ -1,0 +1,1202 @@
+# ironLog --- Local-First Implementation Plan
+
+**Version:** 1.0\
+**Date:** 10 November 2026\
+**Platforms:** iOS and Android\
+**Storage:** One app-managed local JSON document\
+**Backend:** None
+
+A personal workout tracker inspired by Hevy. The MVP prioritises
+reliable workout logging, simple local persistence, useful workout
+history, and low maintenance overhead.
+
+The application is designed for a single user on a device. It does not
+require an account, network connection, server, or cloud service. All
+core functionality must work offline.
+
+---
+
+## 0. Working Instructions
+
+Before making changes:
+
+1.  Inspect the repository. Determine whether it is empty, partially
+    scaffolded, or already implemented.
+2.  Read `README.md`, this plan, and relevant configuration files.
+3.  Preserve useful existing work rather than overwriting it.
+4.  Raise any architectural question that blocks progress before
+    proceeding.
+
+For each phase:
+
+1.  Briefly state what will be implemented.
+2.  Implement only the current phase.
+3.  Run relevant build, typecheck, lint, and test commands.
+4.  Fix issues introduced by the implementation.
+5.  Document decisions and deviations in this file's decisions log.
+6.  Summarise what works and what remains.
+
+Rules:
+
+- Do not claim something works unless verified. Show actual command
+  output or relevant excerpts in each phase report.
+- Do not skip tests because an implementation seems straightforward.
+- Do not implement future-phase features.
+- Keep dependencies minimal. List every dependency added in each phase
+  report and justify it.
+- Use strict TypeScript. Avoid `any`.
+- Prefer current stable Expo and React Native-compatible packages.
+  Verify compatibility before adding dependencies.
+- Do not add a backend, API, database server, authentication, AWS,
+  cloud sync, or web support.
+- Start with Phase 0 only. Do not attempt the whole application in one
+  pass.
+
+---
+
+## 1. Product Scope and Architecture
+
+### 1.1 Product goals
+
+ironLog is a straightforward workout tracker for one person. It should
+make it easy to:
+
+- Browse and search exercises.
+- Create custom exercises.
+- Create and manage workout routines.
+- Start and log workouts.
+- Resume an interrupted workout.
+- Track workout history.
+- Review exercise-specific history and personal records.
+- See basic workout statistics.
+- Export and restore all app data.
+
+### 1.2 Platform scope
+
+Supported:
+
+- iOS
+- Android
+
+Explicitly unsupported for this MVP:
+
+- Web
+- Desktop
+- Multi-user accounts
+- Cross-device synchronisation
+
+### 1.3 Core architecture
+
+The app consists of:
+
+- Expo + React Native user interface.
+- TypeScript domain logic.
+- Zod validation.
+- A central repository responsible for application data.
+- One app-managed JSON document stored in private application storage.
+- Import/export functionality for user-managed backups.
+
+There is no server and no network dependency for core functionality.
+
+### 1.4 Architecture diagram
+
+```text
+             Expo / React Native UI
+                       |
+                       v
+                 Domain layer
+       Workouts / Exercises / Routines / PRs
+                       |
+                       v
+                 Data repository
+      State / Validation / Persistence / Backup
+                       |
+                       v
+              Local JSON document
+             ironlog-data.json
+```
+
+UI components must not read or write the JSON file directly. All data
+access goes through the repository.
+
+---
+
+## 2. Technology Stack
+
+---
+
+Area Technology
+
+---
+
+App framework Expo
+
+UI React Native
+
+Language TypeScript, strict mode
+
+Navigation Expo Router
+
+Local file persistence Expo FileSystem
+
+Runtime validation Zod
+
+State React state/context or a
+lightweight store if justified
+
+Unit tests Vitest, with compatible React
+Native testing tools where needed
+
+Linting ESLint
+
+Formatting Prettier
+
+Native builds EAS Build
+
+---
+
+Keep the dependency list small. Do not introduce a state-management
+library, UI framework, database, or abstraction package unless there is
+a clear demonstrated need.
+
+### 2.1 Persistence choice
+
+Use `expo-file-system` to read and write an app-managed file in the
+application's private documents directory.
+
+The app does not need broad filesystem access to manage its own private
+data. User-facing import and export should use the appropriate native
+document/file picker and sharing mechanisms supported by Expo.
+
+### 2.2 No secondary source of truth
+
+The JSON document is the source of truth for exercises, routines,
+workouts, and preferences.
+
+Do not store workout data in AsyncStorage as a second source of truth.
+Small ephemeral UI state may remain in memory. If a separate storage
+mechanism is proposed for a specific reason, document why and ensure it
+cannot diverge from the JSON document.
+
+---
+
+## 3. Project Structure
+
+Prefer a single Expo application rather than a monorepo. There is no
+backend or shared server package to justify monorepo overhead.
+
+```text
+ironLog/
+├── app/
+│   ├── (tabs)/
+│   │   ├── workout.tsx
+│   │   ├── history.tsx
+│   │   └── profile.tsx
+│   ├── workout/
+│   ├── exercises/
+│   └── routines/
+├── src/
+│   ├── components/
+│   ├── features/
+│   │   ├── workouts/
+│   │   ├── exercises/
+│   │   ├── routines/
+│   │   ├── history/
+│   │   └── statistics/
+│   ├── storage/
+│   │   ├── fileStorage.ts
+│   │   ├── dataRepository.ts
+│   │   ├── migrations.ts
+│   │   └── backup.ts
+│   ├── domain/
+│   │   ├── types.ts
+│   │   ├── schemas.ts
+│   │   ├── workout.ts
+│   │   ├── personalRecords.ts
+│   │   └── streaks.ts
+│   └── constants/
+├── assets/
+├── docs/
+│   └── PLAN.md
+├── app.json
+├── package.json
+├── tsconfig.json
+└── README.md
+```
+
+Adjust the structure if the existing repository already has a sound
+convention. Do not create empty abstractions merely to match this
+example.
+
+---
+
+## 4. Local JSON Data Storage
+
+### 4.1 File
+
+Use one app-managed file:
+
+`ironlog-data.json`
+
+The file is stored in the app's private documents directory and is not
+assumed to be directly accessible to the user through a file browser.
+
+### 4.2 Top-level document
+
+Initial shape:
+
+```json
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-11-10T10:00:00.000Z",
+  "updatedAt": "2026-11-10T10:00:00.000Z",
+  "exercises": [],
+  "routines": [],
+  "workouts": [],
+  "preferences": {
+    "weightUnit": "kg",
+    "autoStartRestTimer": false,
+    "defaultRestDuration": 120
+  }
+}
+```
+
+The exact preference fields may evolve, but they must be typed and
+validated.
+
+### 4.3 Repository responsibilities
+
+The repository is the only application-level interface for persisted
+data. It is responsible for:
+
+- Initialising storage and creating a default document on first
+  launch.
+- Reading and parsing the document.
+- Validating loaded data.
+- Exposing current application data to the UI.
+- Applying domain changes.
+- Persisting changes.
+- Serialising writes so they cannot overtake one another.
+- Handling write failures without discarding in-memory user changes.
+- Updating `updatedAt`.
+- Running schema migrations.
+- Importing and exporting backups.
+
+Possible interface:
+
+```ts
+interface IronLogRepository {
+  initialise(): Promise<void>;
+  getData(): AppData;
+
+  saveWorkout(workout: Workout): Promise<void>;
+  completeWorkout(id: string): Promise<void>;
+  deleteWorkout(id: string): Promise<void>;
+
+  saveRoutine(routine: Routine): Promise<void>;
+  deleteRoutine(id: string): Promise<void>;
+
+  saveExercise(exercise: Exercise): Promise<void>;
+  deleteExercise(id: string): Promise<void>;
+
+  exportData(): Promise<void>;
+  importData(): Promise<void>;
+}
+```
+
+This is illustrative. Adapt method signatures to the actual domain
+operations. Avoid exposing mutable internal objects that allow callers
+to bypass repository validation and persistence.
+
+### 4.4 Write reliability
+
+Writes must be serialised. If several edits happen quickly, the final
+file must contain the newest complete state, not an older write that
+finished late.
+
+Use a safe write strategy:
+
+1.  Serialise the complete current document.
+2.  Write to a temporary file.
+3.  Verify that the write completed successfully.
+4.  Replace the primary file using the safest supported filesystem
+    operation.
+5.  Retain a previous known-good copy or recovery mechanism until the
+    replacement is confirmed.
+
+Verify the exact atomicity and rename/move behaviour of the chosen Expo
+FileSystem API on both iOS and Android. Do not assume filesystem
+operations are atomic without testing.
+
+Debounce ordinary high-frequency edits where appropriate, but do not
+delay important persistence indefinitely. Flush immediately for
+significant operations such as workout completion, explicit deletion,
+and app lifecycle transitions where possible.
+
+A failed write must not clear the active workout or discard the latest
+in-memory state. Surface a clear recoverable error and allow retry.
+
+### 4.5 Loading and corruption recovery
+
+On startup:
+
+1.  Locate the primary document.
+2.  If it does not exist, create a valid initial document.
+3.  Parse and validate the primary document.
+4.  If invalid, attempt recovery from the previous known-good copy.
+5.  If recovery succeeds, restore it and inform the user.
+6.  If neither copy is valid, preserve the damaged file for possible
+    manual recovery and present a clear recovery path. Do not silently
+    replace user data with an empty document.
+
+Validation errors should be useful for diagnostics without exposing
+unnecessary technical detail to the user.
+
+### 4.6 Schema versioning and migrations
+
+Every document has a `schemaVersion`.
+
+When the app loads an older supported version:
+
+1.  Read the version.
+2.  Run sequential migrations.
+3.  Validate the migrated document against the current schema.
+4.  Persist the migrated document safely.
+5.  Keep a recoverable copy of the original until migration succeeds.
+
+Do not silently accept unknown future schema versions. Explain that the
+file was created by a newer app version and avoid overwriting it.
+
+### 4.7 Import and export
+
+Provide user-facing options to:
+
+- Export the complete data document as JSON.
+- Import a JSON backup.
+- Confirm before replacing current data.
+- Validate the complete imported document before replacing anything.
+- Preserve current data if import validation or writing fails.
+
+The export should be a portable, self-contained backup. The import
+should support backups created by earlier supported schema versions
+through migrations.
+
+CSV export may be considered later for spreadsheet analysis, but CSV is
+not the live storage format and is not required for the MVP.
+
+### 4.8 Data size and performance
+
+A single-user workout history is expected to remain manageable as one
+JSON document for the MVP.
+
+Do not prematurely introduce SQLite or a more complex persistence layer.
+Include tests and a representative large-document performance check in
+the hardening phase. Revisit storage only if measured load, parse,
+memory, or write performance becomes unacceptable.
+
+---
+
+## 5. Domain Model
+
+### 5.1 Validation limits and enums
+
+Use Zod schemas and TypeScript types from a single domain definition.
+
+Limits:
+
+- Maximum 30 exercises per workout or routine.
+- `exerciseId` must be unique within a workout.
+- `exerciseId` must be unique within a routine.
+- Maximum 20 sets per exercise.
+- Name maximum 100 characters.
+- Notes maximum 1,000 characters.
+- Reps: integer from 0 to 1,000.
+- Weight: 0 to 1,000 kg.
+- RPE: 1 to 10, in increments of 0.5.
+- `completedLocalDate` must be a valid `YYYY-MM-DD` date and within
+  approximately one day of `completedAt` as a sanity check.
+
+An exercise may only be added once to a workout in the MVP. Supporting
+duplicate exercise entries in one workout can be considered later.
+
+Muscle group enum:
+
+```text
+chest, back, shoulders, biceps, triceps, forearms, quads,
+hamstrings, glutes, calves, core, full_body, cardio, other
+```
+
+Equipment enum:
+
+```text
+barbell, dumbbell, machine, cable, bodyweight, kettlebell, band, other
+```
+
+### 5.2 Exercises
+
+Exercise attributes:
+
+```ts
+interface Exercise {
+  exerciseId: string;
+  name: string;
+  muscleGroup: MuscleGroup;
+  equipment: Equipment;
+  isCustom: boolean;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+}
+```
+
+Requirements:
+
+- Include approximately 50--100 common built-in exercises.
+- Built-in exercise IDs use stable slugs, for example
+  `barbell-bench-press`.
+- Built-in exercises are read-only in the MVP.
+- Users can create, edit, and soft-delete their own custom exercises.
+- Soft-deleted custom exercises are excluded from normal pickers but
+  remain resolvable by ID.
+- Existing workout history remains readable because workouts snapshot
+  exercise names.
+- Maximum 200 active custom exercises. Soft-deleted exercises do not
+  count toward the cap.
+
+### 5.3 Routines
+
+```ts
+interface Routine {
+  routineId: string;
+  name: string;
+  exercises: RoutineExercise[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface RoutineExercise {
+  exerciseId: string;
+  order: number;
+  targetSets: number;
+  targetReps: number;
+}
+```
+
+Requirements:
+
+- Full create, read, update and delete functionality.
+- Preserve exercise ordering.
+- Exercise IDs must be unique within a routine.
+- Maximum 30 exercises per routine.
+- Maximum 50 routines.
+- Routine exercises refer to exercise IDs. Handle soft-deleted or
+  unavailable exercises gracefully.
+
+### 5.4 Workouts
+
+Workout IDs are client-generated ULIDs. They provide stable identifiers
+and roughly time-sortable ordering.
+
+```ts
+interface Workout {
+  workoutId: string;
+  routineId?: string;
+  name: string;
+  startedAt: string;
+  completedAt?: string;
+  completedLocalDate?: string;
+  status: "active" | "completed";
+  exercises: WorkoutExercise[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface WorkoutExercise {
+  exerciseId: string;
+  name: string;
+  order: number;
+  sets: WorkoutSet[];
+}
+
+interface WorkoutSet {
+  setId: string;
+  type: "normal" | "warmup" | "drop" | "failure";
+  reps?: number;
+  weightKg?: number;
+  completed: boolean;
+  rpe?: number;
+  notes?: string;
+}
+```
+
+Rules:
+
+- Store weight canonically in kilograms.
+- Convert to/from pounds only at the UI boundary according to the
+  user's preference.
+- Never store both kg and lb values.
+- Snapshot exercise names into workouts so history remains readable if
+  an exercise is renamed.
+- Exclude warm-up sets from PR calculations.
+- Completed workouts are immutable in the MVP.
+- An active workout is stored in the same JSON document as all other
+  app data.
+- Workout IDs remain stable throughout the active workout lifecycle.
+
+### 5.5 Exercise history
+
+Do not store a denormalised exercise-history collection in the JSON
+document.
+
+The workout list is the source of truth. Exercise-specific history is
+derived by selecting completed workouts containing the relevant
+exercise.
+
+This avoids duplicate data and removes the need to keep separate history
+records in sync when workouts are deleted or changed.
+
+Sort history consistently by workout start time. Display completion time
+and local completion date where relevant.
+
+### 5.6 Statistics
+
+Calculate locally:
+
+```ts
+interface UserStats {
+  totalWorkouts: number;
+  lastWorkoutLocalDate?: string;
+  currentStreakDays: number;
+}
+```
+
+Statistics are derived from completed workouts rather than separately
+persisted as authoritative data.
+
+Streak = consecutive calendar days (using the local date recorded on
+completion) with at least one completed workout.
+
+Streak rules when completing a workout on local date `D`, with previous
+last date `L`:
+
+- `D = L` or `D < L`: streak and last workout date remain unchanged;
+  total still increments.
+- `D = L + 1`: increment streak and set last workout date to `D`.
+- `D > L + 1`: reset streak to 1 and set last workout date to `D`.
+
+When deleting a completed workout, recalculate the statistics from the
+remaining completed workouts.
+
+The displayed streak is zero if the last workout date is older than
+yesterday. Apply this stale-streak rule at read time.
+
+For a single-user JSON document, recalculating from the complete local
+history is acceptable initially. Avoid introducing the original
+server-side 200-workout recomputation limit.
+
+### 5.7 Personal records
+
+Calculate PRs per exercise from completed, non-warm-up sets:
+
+1.  **Heaviest weight:** greatest weight lifted for at least one rep.
+2.  **Best estimated 1RM:** Epley formula, `weight * (1 + reps / 30)`,
+    for sets of 1--12 reps.
+3.  **Most reps:** greatest reps in a single set when no weight is
+    recorded (bodyweight).
+
+PRs are calculated client-side from local workout history. They do not
+need separate persisted records for the MVP.
+
+---
+
+## 6. Application Features
+
+### 6.1 Navigation
+
+Use Expo Router with bottom tabs:
+
+- Workout
+- History
+- Profile
+
+Use native-feeling navigation and platform conventions where
+appropriate.
+
+### 6.2 Workout tab
+
+The Workout tab provides:
+
+- List of saved routines.
+- Start workout from a routine.
+- Start a blank workout.
+- Resume active workout.
+- Clear indication when an active workout exists.
+
+### 6.3 Exercise library
+
+Provide:
+
+- Exercise list.
+- Search by name.
+- Filter by muscle group.
+- Exercise details.
+- Create custom exercise.
+- Edit custom exercise.
+- Soft-delete custom exercise.
+
+Search and filtering run locally against the JSON document.
+
+### 6.4 Routines
+
+Provide:
+
+- Routine list.
+- Create routine.
+- Edit routine name.
+- Add and remove exercises.
+- Reorder exercises.
+- Configure target sets and reps.
+- Delete routine.
+- Start workout from routine.
+
+### 6.5 Active workout
+
+Provide:
+
+- Exercise cards.
+- Set rows.
+- Edit reps and weight.
+- Edit RPE and notes.
+- Select set type.
+- Mark sets complete.
+- Add and remove sets.
+- Add and remove exercises.
+- Exercise ordering.
+- Workout duration.
+- Local draft persistence and recovery.
+- Complete workout action.
+- Abandon/discard workout action with confirmation.
+
+An exercise can only be added once per workout in the MVP.
+
+### 6.6 Rest timer
+
+Provide a local rest timer:
+
+- Manual start.
+- Optional auto-start after completing a set.
+- Pause.
+- Reset.
+- Adjustable duration.
+- Sensible default duration.
+- Native haptic feedback where supported.
+
+The timer does not need to persist as a continuously running process. On
+app resume, calculate remaining time from a stored end timestamp if
+timer continuity is desired.
+
+### 6.7 History
+
+Provide:
+
+- Completed workout list.
+- Grouping by local completion date.
+- Workout detail screen.
+- Delete workout.
+- Exercise-specific history.
+- Exercise PR display.
+
+History is derived from local workout records. There is no pagination
+requirement for the MVP, but use efficient selectors and avoid
+unnecessary full-document recalculation on every render.
+
+### 6.8 Profile
+
+Display exactly these headline statistics:
+
+- Total workouts.
+- Current streak.
+- Last workout date.
+
+Also provide:
+
+- kg/lb preference.
+- Rest timer preferences.
+- Export data.
+- Import data.
+- App/data version information where useful.
+
+Do not invent additional metrics for the MVP.
+
+---
+
+## 7. Persistence and Application Lifecycle
+
+Local workout persistence is a core requirement.
+
+Requirements:
+
+- An active workout survives navigation.
+- An active workout survives app suspension.
+- An active workout survives app restart.
+- Changes are saved frequently enough that normal interruption does
+  not lose meaningful work.
+- Important actions trigger immediate persistence.
+- Failed writes never cause local state loss.
+- On startup, detect and offer to resume an active workout.
+- Clear or mark the active workout completed only after the completed
+  state has been successfully persisted.
+- Explicit discard removes the active workout only after the deletion
+  has been successfully persisted.
+
+There is no network state and no server recovery path.
+
+---
+
+## 8. Implementation Phases
+
+Start with Phase 0 only. Complete and verify each phase before moving
+on.
+
+### Phase 0 --- Project foundation
+
+Implement:
+
+- Inspect current repository and preserve existing work.
+- Expo project foundation.
+- TypeScript strict configuration.
+- Expo Router.
+- ESLint.
+- Prettier.
+- Vitest.
+- Root scripts and README.
+- iOS and Android development setup.
+- Basic app shell and placeholder tabs.
+
+Verify:
+
+- Dependencies install successfully.
+- App starts in iOS simulator/device.
+- App starts in Android emulator/device.
+- Typecheck passes.
+- Lint passes.
+- Tests pass.
+- Formatting check passes.
+
+Do not implement persistence or workout features in this phase.
+
+Done when the project foundation runs on both target platforms and all
+relevant checks pass.
+
+### Phase 1 --- Domain model and local persistence
+
+Implement:
+
+- Domain TypeScript types.
+- Zod schemas and validation limits.
+- Initial JSON document.
+- Expo FileSystem storage adapter.
+- Central repository.
+- Serialised writes.
+- Safe replacement and recovery strategy.
+- Corrupted-file handling.
+- Schema versioning and migrations.
+- JSON export/import.
+- Built-in exercise seed data.
+
+Tests:
+
+- Initial document creation.
+- Load and save round trip.
+- Multiple writes in quick succession.
+- Failed write recovery.
+- Corrupted primary file recovery.
+- Invalid import rejection.
+- Import/export round trip.
+- Migration from an older schema.
+- Unknown future schema version handling.
+
+Done when app data can be created, persisted, loaded after restart,
+exported and restored.
+
+### Phase 2 --- Exercises and routines
+
+Implement:
+
+- Exercise library UI.
+- Built-in exercise browsing.
+- Search and muscle-group filters.
+- Custom exercise create/edit/soft-delete.
+- Routine list and CRUD.
+- Exercise selection and ordering.
+- Target sets and reps.
+- Limits and validation.
+
+Tests:
+
+- Exercise validation.
+- Custom exercise cap.
+- Soft-deleted exercise behaviour.
+- Routine validation and cap.
+- Duplicate exercise ID rejection.
+- Exercise and routine persistence.
+
+Done when exercises and routines can be managed entirely offline.
+
+### Phase 3 --- Workout logging
+
+Implement:
+
+- Workout tab.
+- Start blank workout.
+- Start from routine.
+- Active workout screen.
+- Add/remove exercises.
+- Add/remove sets.
+- Edit reps, weight, RPE and notes.
+- Set types.
+- Set completion.
+- Workout duration.
+- Draft persistence and restore.
+- Resume active workout after restart.
+
+Tests:
+
+- Workout creation.
+- Routine-to-workout conversion.
+- Set editing.
+- Exercise and set limits.
+- Active workout persistence.
+- Resume after simulated restart.
+- Failed save does not lose current workout state.
+
+Done when a workout can be logged, interrupted and resumed without
+losing data.
+
+### Phase 4 --- Timer and workout experience
+
+Implement:
+
+- Rest timer.
+- Manual start, pause and reset.
+- Adjustable duration.
+- Optional auto-start after completed set.
+- Haptics on native platforms where supported.
+- Workout completion.
+- Explicit workout discard.
+- Error, loading and empty states.
+- Interaction polish.
+
+Tests:
+
+- Timer state transitions.
+- Auto-start preference.
+- Completion persistence.
+- Discard persistence.
+- Completion cannot leave an active workout behind after a successful
+  save.
+
+Done when workout logging is reliable and comfortable to use.
+
+### Phase 5 --- History, PRs and statistics
+
+Implement:
+
+- Completed workout history.
+- Date grouping.
+- Workout detail.
+- Workout deletion.
+- Exercise-specific history.
+- Heaviest-weight PR.
+- Epley estimated 1RM.
+- Most-reps bodyweight PR.
+- Total workouts.
+- Current streak.
+- Last workout date.
+- Recalculation after deleting workouts.
+
+Tests:
+
+- History selection and ordering.
+- Workout deletion updates derived history.
+- Warm-up exclusion from PRs.
+- Epley calculation and rep boundaries.
+- Bodyweight rep PR.
+- Streak rules, including same-day and backdated workouts.
+- Stale streak display.
+- Deletion recalculates total, last date and streak.
+
+Done when the complete history and statistics feature set works locally.
+
+### Phase 6 --- Hardening and release preparation
+
+Implement and verify:
+
+- Robust file error handling.
+- Recovery from interrupted writes.
+- Migration testing.
+- Import/export testing.
+- Large-document performance checks.
+- Accessibility.
+- Device-specific layout and interaction checks.
+- App lifecycle behaviour.
+- EAS build configuration.
+- iOS release preparation.
+- Android release preparation.
+- README and user-facing backup guidance.
+- Release checklist.
+
+Test on physical iOS and Android devices where available.
+
+Done when the app is suitable for a small beta release.
+
+---
+
+## 9. Testing Strategy
+
+### 9.1 Domain unit tests
+
+Cover:
+
+- Zod schemas and all validation limits.
+- Duplicate exercise rejection.
+- Weight conversion.
+- Workout state updates.
+- PR calculations.
+- Warm-up exclusion.
+- Epley formula and rep boundaries.
+- Streak calculation.
+- Backdated and same-day completion.
+- Date grouping.
+
+### 9.2 Storage tests
+
+Cover:
+
+- Initial file creation.
+- Read/write round trips.
+- Serialised writes.
+- Safe replacement behaviour.
+- Failed writes.
+- Recovery copy behaviour.
+- Corrupted JSON.
+- Invalid schema.
+- Migrations.
+- Unknown future schema.
+- Import validation.
+- Export/import round trip.
+- Large document handling.
+
+### 9.3 Application tests
+
+Cover:
+
+- Start blank workout.
+- Start workout from routine.
+- Add/edit/remove exercises and sets.
+- Complete workout.
+- Discard active workout.
+- Resume active workout after restart.
+- History reflects completed workouts.
+- Delete workout updates derived information.
+- Data remains available without network access.
+
+### 9.4 Device tests
+
+Verify on iOS and Android:
+
+- App launch and initialisation.
+- App suspension and resume.
+- App termination and restart.
+- Private file persistence.
+- Import/export through native file interfaces.
+- Haptics where supported.
+- Low-storage and failed-write handling where practical.
+- Layout and keyboard behaviour.
+
+Ordinary unit tests must not require a server or live cloud service.
+
+---
+
+## 10. Non-Functional Requirements
+
+- Strict TypeScript.
+- No unnecessary `any`.
+- One source of truth for persisted app data.
+- All core functionality works offline.
+- No backend or network dependency.
+- Safe local persistence.
+- Recoverable writes.
+- Validated imported data.
+- Versioned schema and migrations.
+- Clear loading, empty and error states.
+- Accessible controls and readable workout logging UI.
+- Good performance with a realistic multi-year workout history.
+- No unnecessary dependencies or infrastructure.
+
+---
+
+## 11. Out of Scope for MVP
+
+- Web application.
+- Backend or API.
+- Cloud database.
+- Cloud synchronisation.
+- User accounts and authentication.
+- Multi-user support.
+- Social features.
+- Exercise images.
+- Apple Health.
+- Health Connect.
+- Advanced analytics.
+- CSV as the primary storage format.
+
+CSV export may be considered later. JSON remains the portable backup
+format and the local source of truth.
+
+---
+
+## 12. Documentation
+
+### README.md
+
+Include:
+
+- Product overview.
+- Supported platforms.
+- Architecture.
+- Prerequisites.
+- Installation.
+- Running on iOS.
+- Running on Android.
+- Tests, lint and typecheck commands.
+- Local storage location at a conceptual level.
+- Export and import instructions.
+- Backup and data-loss limitations.
+- EAS build instructions.
+
+### docs/PLAN.md
+
+This document is the canonical implementation plan. Update it as phases
+complete. Record decisions and deviations in the decisions log.
+
+Do not maintain competing active implementation plans.
+
+---
+
+## 13. Definition of Done
+
+A phase is complete only when:
+
+- Implementation exists.
+- Relevant commands succeed.
+- Tests pass.
+- Actual verification output is shown.
+- Documentation is updated.
+- Deliverable is demonstrable.
+- Limitations are documented.
+
+The MVP is complete when a user can, on iOS and Android:
+
+1.  Install and open ironLog.
+2.  Browse and search built-in exercises.
+3.  Create custom exercises.
+4.  Create and manage routines.
+5.  Start a workout.
+6.  Log sets, reps, weights, RPE and notes.
+7.  Interrupt and resume a workout after app restart.
+8.  Complete or discard a workout.
+9.  View workout history and details.
+10. View exercise-specific history.
+11. See personal records.
+12. See total workouts, current streak and last workout date.
+13. Export all data as JSON.
+14. Restore data from a JSON backup.
+15. Use all core features without an internet connection.
+
+---
+
+## 14. Decisions Log
+
+---
+
+Date Decision Rationale
+
+---
+
+2026-11-10 Target iOS and Android Web support is
+only explicitly removed from
+the product scope.
+
+2026-11-10 Local-first application Single-user use case
+with no server does not justify
+backend and
+infrastructure
+complexity.
+
+2026-11-10 One local JSON document Expected single-user
+is the source of truth data size is
+manageable; JSON is
+portable and easy to
+back up.
+
+2026-11-10 Use Expo FileSystem for Provides app-managed
+native persistence local file access on
+both iOS and Android.
+
+2026-11-10 Use a central Keeps UI independent of
+repository file implementation and
+centralises validation
+and persistence.
+
+2026-11-10 No AsyncStorage for Avoids multiple sources
+workout data of truth.
+
+2026-11-10 Exercise history and Avoids duplicated data
+statistics are derived and synchronisation
+bugs inside the local
+document.
+
+2026-11-10 JSON import/export is Local-only data needs a
+an MVP feature practical backup and
+restore path.
+
+2026-11-10 Completed workouts are Simplifies history and
+immutable in MVP derived-statistics
+consistency.
+
+2026-11-10 Weight is stored in A single canonical unit
+kilograms avoids inconsistent
+stored values.
+
+2026-11-10 One exercise ID per Keeps the initial
+workout workout/history model
+simple.
+
+2026-11-10 CSV is not the primary Flat rows are less
+storage format suitable for nested
+workout, exercise and
+set structures.
+
+2026-11-10 Start with Phase 0 only Establish and verify
+the foundation before
+implementing features.
+
+2026-11-10 Phase 0 scaffolded from Expo SDK 58 tabs Guarantees compatible
+`tabs` template; web support dependency versions and a
+removed (react-dom, working router
+react-native-web, baseline.
+expo-web-browser) per
+platform scope.
+
+2026-11-10 Placeholder tabs are Workout, Matches the
+History and Profile per navigation
+section 6.1.
+
+2026-11-10 iOS/Android launch not verified on this Expo web export
+machine (no Xcode or Android bundling passes for
+SDK installed); run `npm run both platforms; run on
+ios` / `npm run android` device or simulator to
+confirm runtime.
+
+---
