@@ -1,5 +1,11 @@
+import * as Crypto from 'expo-crypto';
+
+import { setRandomBytes } from '../domain/id';
 import { DataRepository } from './dataRepository';
 import { ExpoFileStore } from './expoFileStore';
+
+// Provide a cryptographic RNG for ID generation on native platforms.
+setRandomBytes((length) => Crypto.getRandomBytes(length));
 
 let instance: DataRepository | null = null;
 

@@ -1226,4 +1226,58 @@ for now; typed domain arrive with the feature
 methods (saveWorkout phases that need
 etc.) will wrap it. them.
 
+2026-11-10 Phase 2: domain operations are Pure functions over the
+pure functions over the AppData draft keep
+AppData draft, wrapped by validation logic unit-testable
+repository methods. and independent of
+persistence.
+
+2026-11-10 Phase 2: UI state via a small Exercise/routine screens
+React context re-read the stay consistent with the
+repository snapshot after single source of truth;
+each mutation. no separate client cache.
+
+2026-11-10 Phase 2: routine exercise Reordering via
+reordering uses up/down move buttons rather
+buttons, not drag-and-drop. than a drag library,
+which is not justified
+for the MVP.
+
+2026-11-10 ULID generation is a small custom The `ulid` package's
+encoder in `src/domain/id.ts` PRNG detection fails in
+using `expo-crypto`'s Hermes (no
+synchronous `getRandomBytes`; `crypto.getRandomValues`),
+entropy is injectable for crashing routine
+Node-based tests. creation. expo-crypto is
+the Expo-blessed entropy
+source; the `ulid` package
+was removed.
+
+2026-11-10 Phase 3: workout operations Pure domain functions
+follow the Phase 2 pattern keep workout logic
+(pure functions over the unit-testable and
+AppData draft wrapped by consistent with
+repository methods). exercises/routines.
+
+2026-11-10 Phase 3: set field edits commit Set-by-set persistence
+on blur/submit rather than keeps every meaningful
+per-keystroke. change durable without
+excessive writes; in-progress
+text is preserved across
+unrelated reloads via a
+field signature check.
+
+2026-11-10 Phase 3: weight entry displays Values are stored in kg
+and edits in the user's per the canonical-unit
+display unit (kg/lb) and decision; conversion
+converts to kg on commit. happens only at the UI
+boundary.
+
+2026-11-10 Phase 3: active workout resume The Workout tab shows a
+is surfaced on the Workout "resume" card whenever
+Tab; `/workout/active` an active workout exists,
+reads the single active so restart recovery is
+workout from the document. discoverable without a
+separate prompt flow.
+
 ---

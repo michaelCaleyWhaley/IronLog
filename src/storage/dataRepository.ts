@@ -1,7 +1,35 @@
+import type { ExerciseInput, ExercisePatch } from '../domain/exercises';
+import {
+  addCustomExercise,
+  softDeleteExercise,
+  updateCustomExercise,
+} from '../domain/exercises';
 import { createInitialDocument } from '../domain/initialDocument';
+import type { RoutineInput, RoutinePatch } from '../domain/routines';
+import { addRoutine, deleteRoutine, updateRoutine } from '../domain/routines';
 import { safeParseAppData } from '../domain/schemas';
-import type { AppData } from '../domain/types';
+import type {
+  AppData,
+  Exercise,
+  Routine,
+  Workout,
+  WorkoutExercise,
+  WorkoutSet,
+} from '../domain/types';
 import { CURRENT_SCHEMA_VERSION } from '../domain/types';
+import type { WorkoutSetPatch } from '../domain/workouts';
+import {
+  addExerciseToWorkout,
+  addSetToWorkout,
+  completeWorkout,
+  discardWorkout,
+  moveWorkoutExercise,
+  removeExerciseFromWorkout,
+  removeSetFromWorkout,
+  startBlankWorkout,
+  startWorkoutFromRoutine,
+  updateWorkoutSet,
+} from '../domain/workouts';
 import {
   DataCorruptedError,
   DataValidationError,
@@ -45,6 +73,7 @@ function clone<T>(value: T): T {
 export class DataRepository {
   private current: AppData | null = null;
   private queue: Promise<void> = Promise.resolve();
+  private initPromise: Promise<LoadResult> | null = null;
   private readonly store: KeyValueStore;
   private readonly migrations?: Record<number, Migration>;
   private readonly now: () => Date;
@@ -65,7 +94,17 @@ export class DataRepository {
     if (this.current) {
       return { status: 'loaded' };
     }
+    if (!this.initPromise) {
+      // Share one in-flight initialisation; allow retry after failure.
+      this.initPromise = this.doInitialise().catch((error: unknown) => {
+        this.initPromise = null;
+        throw error;
+      });
+    }
+    return this.initPromise;
+  }
 
+  private async doInitialise(): Promise<LoadResult> {
     const primaryText = await this.store.read(PRIMARY_KEY);
     if (primaryText === null) {
       this.current = createInitialDocument(this.now());
@@ -174,6 +213,212 @@ export class DataRepository {
     await this.enqueue(async () => {
       await this.writeSnapshot(data, true);
       this.current = data;
+    });
+  }
+
+  // ---- Exercises -------------------------------------------------------
+
+  async createExercise(input: ExerciseInput): Promise<Exercise> {
+    const holder: { exercise?: Exercise } = {};
+    await this.update((draft) => {
+      holder.exercise = addCustomExercise(
+        draft,
+        input,
+        this.now().toISOString(),
+      );
+    });
+    return holder.exercise as Exercise;
+  }
+
+  async updateExercise(
+    exerciseId: string,
+    patch: ExercisePatch,
+  ): Promise<Exercise> {
+    const holder: { exercise?: Exercise } = {};
+    await this.update((draft) => {
+      holder.exercise = updateCustomExercise(
+        draft,
+        exerciseId,
+        patch,
+        this.now().toISOString(),
+      );
+    });
+    return holder.exercise as Exercise;
+  }
+
+  async deleteExercise(exerciseId: string): Promise<void> {
+    await this.update((draft) => {
+      softDeleteExercise(draft, exerciseId, this.now().toISOString());
+    });
+  }
+
+  // ---- Routines --------------------------------------------------------
+
+  async createRoutine(input: RoutineInput): Promise<Routine> {
+    const holder: { routine?: Routine } = {};
+    await this.update((draft) => {
+      holder.routine = addRoutine(draft, input, this.now().toISOString());
+    });
+    return holder.routine as Routine;
+  }
+
+  async updateRoutine(
+    routineId: string,
+    patch: RoutinePatch,
+  ): Promise<Routine> {
+    const holder: { routine?: Routine } = {};
+    await this.update((draft) => {
+      holder.routine = updateRoutine(
+        draft,
+        routineId,
+        patch,
+        this.now().toISOString(),
+      );
+    });
+    return holder.routine as Routine;
+  }
+
+  async deleteRoutine(routineId: string): Promise<void> {
+    await this.update((draft) => {
+      deleteRoutine(draft, routineId);
+    });
+  }
+
+  // ---- Workouts --------------------------------------------------------
+
+  async startBlankWorkout(name?: string): Promise<Workout> {
+    const holder: { workout?: Workout } = {};
+    await this.update((draft) => {
+      holder.workout = startBlankWorkout(draft, name, this.now().toISOString());
+    });
+    return holder.workout as Workout;
+  }
+
+  async startWorkoutFromRoutine(routineId: string): Promise<Workout> {
+    const holder: { workout?: Workout } = {};
+    await this.update((draft) => {
+      holder.workout = startWorkoutFromRoutine(
+        draft,
+        routineId,
+        this.now().toISOString(),
+      );
+    });
+    return holder.workout as Workout;
+  }
+
+  async addExerciseToWorkout(
+    workoutId: string,
+    exerciseId: string,
+  ): Promise<WorkoutExercise> {
+    const holder: { entry?: WorkoutExercise } = {};
+    await this.update((draft) => {
+      holder.entry = addExerciseToWorkout(
+        draft,
+        workoutId,
+        exerciseId,
+        this.now().toISOString(),
+      );
+    });
+    return holder.entry as WorkoutExercise;
+  }
+
+  async removeExerciseFromWorkout(
+    workoutId: string,
+    exerciseId: string,
+  ): Promise<void> {
+    await this.update((draft) => {
+      removeExerciseFromWorkout(
+        draft,
+        workoutId,
+        exerciseId,
+        this.now().toISOString(),
+      );
+    });
+  }
+
+  async addSetToWorkout(
+    workoutId: string,
+    exerciseId: string,
+  ): Promise<WorkoutSet> {
+    const holder: { set?: WorkoutSet } = {};
+    await this.update((draft) => {
+      holder.set = addSetToWorkout(
+        draft,
+        workoutId,
+        exerciseId,
+        this.now().toISOString(),
+      );
+    });
+    return holder.set as WorkoutSet;
+  }
+
+  async removeSetFromWorkout(
+    workoutId: string,
+    exerciseId: string,
+    setId: string,
+  ): Promise<void> {
+    await this.update((draft) => {
+      removeSetFromWorkout(
+        draft,
+        workoutId,
+        exerciseId,
+        setId,
+        this.now().toISOString(),
+      );
+    });
+  }
+
+  async updateWorkoutSet(
+    workoutId: string,
+    exerciseId: string,
+    setId: string,
+    patch: WorkoutSetPatch,
+  ): Promise<WorkoutSet> {
+    const holder: { set?: WorkoutSet } = {};
+    await this.update((draft) => {
+      holder.set = updateWorkoutSet(
+        draft,
+        workoutId,
+        exerciseId,
+        setId,
+        patch,
+        this.now().toISOString(),
+      );
+    });
+    return holder.set as WorkoutSet;
+  }
+
+  async moveWorkoutExercise(
+    workoutId: string,
+    exerciseId: string,
+    direction: -1 | 1,
+  ): Promise<void> {
+    await this.update((draft) => {
+      moveWorkoutExercise(
+        draft,
+        workoutId,
+        exerciseId,
+        direction,
+        this.now().toISOString(),
+      );
+    });
+  }
+
+  async completeWorkout(workoutId: string): Promise<Workout> {
+    const holder: { workout?: Workout } = {};
+    await this.update((draft) => {
+      holder.workout = completeWorkout(
+        draft,
+        workoutId,
+        this.now().toISOString(),
+      );
+    });
+    return holder.workout as Workout;
+  }
+
+  async discardWorkout(workoutId: string): Promise<void> {
+    await this.update((draft) => {
+      discardWorkout(draft, workoutId);
     });
   }
 

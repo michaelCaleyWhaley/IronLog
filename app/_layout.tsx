@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
-import { getRepository } from '@/src/storage/repository';
+import { AppDataProvider } from '@/src/state/AppDataContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -36,21 +36,6 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  // Initialise local persistence once on startup. Recovery and error UI
-  // lands in a later phase; for now failures are logged.
-  useEffect(() => {
-    getRepository()
-      .initialise()
-      .then((result) => {
-        if (result.message) {
-          console.warn(result.message);
-        }
-      })
-      .catch((error: unknown) => {
-        console.error('Failed to initialise local data store', error);
-      });
-  }, []);
-
   if (!loaded) {
     return null;
   }
@@ -63,9 +48,11 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      </Stack>
+      <AppDataProvider>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        </Stack>
+      </AppDataProvider>
     </ThemeProvider>
   );
 }
