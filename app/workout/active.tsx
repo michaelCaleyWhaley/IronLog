@@ -295,16 +295,16 @@ export default function ActiveWorkoutScreen() {
         >
           <Text style={styles.addExerciseText}>+ Add exercise</Text>
         </Pressable>
-      </ScrollView>
 
-      <View style={styles.footer}>
-        <Pressable style={styles.discardButton} onPress={handleDiscard}>
-          <Text style={styles.discardText}>Discard</Text>
-        </Pressable>
-        <Pressable style={styles.completeButton} onPress={handleComplete}>
-          <Text style={styles.completeText}>Complete workout</Text>
-        </Pressable>
-      </View>
+        <View style={styles.footer}>
+          <Pressable style={styles.discardButton} onPress={handleDiscard}>
+            <Text style={styles.discardText}>Discard</Text>
+          </Pressable>
+          <Pressable style={styles.completeButton} onPress={handleComplete}>
+            <Text style={styles.completeText}>Complete workout</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
 
       <ExercisePickerModal
         visible={showPicker}
@@ -506,10 +506,7 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     gap: 12,
-    padding: 16,
-    backgroundColor: '#fff',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#ddd',
+    marginTop: 16,
   },
   discardButton: {
     borderWidth: 1,
