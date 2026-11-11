@@ -307,6 +307,15 @@ export function completeWorkout(
   return workout;
 }
 
+/** Deletes a workout record. Active workouts should use discardWorkout. */
+export function deleteWorkout(draft: AppData, workoutId: string): void {
+  const workout = findWorkout(draft, workoutId);
+  if (workout.status === 'active') {
+    throw new WorkoutNotActiveError(workoutId);
+  }
+  draft.workouts = draft.workouts.filter((w) => w.workoutId !== workoutId);
+}
+
 /** Discards (deletes) an active workout. */
 export function discardWorkout(draft: AppData, workoutId: string): void {
   const workout = findWorkout(draft, workoutId);

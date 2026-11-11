@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { Link, router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,12 +13,24 @@ import { Text } from '@/components/Themed';
 import { ExerciseForm } from '@/src/components/ExerciseForm';
 import { equipmentLabel, muscleGroupLabel } from '@/src/domain/labels';
 import { getExercise } from '@/src/domain/selectors';
+import { exerciseHistory, personalRecords } from '@/src/domain/stats';
+import { kgToUnit } from '@/src/domain/weight';
 import { useAppData } from '@/src/state/AppDataContext';
 
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { status, data, mutate } = useAppData();
   const [busy, setBusy] = useState(false);
+  const exerciseId = id ?? '';
+
+  const records = useMemo(
+    () => (data ? personalRecords(data, exerciseId) : {}),
+    [data, exerciseId],
+  );
+  const history = useMemo(
+    () => (data ? exerciseHistory(data, exerciseId).slice(0, 10) : []),
+    [data, exerciseId],
+  );
 
   if (status === 'loading') {
     return (
@@ -45,6 +57,8 @@ export default function ExerciseDetailScreen() {
   }
 
   const isEditable = exercise.isCustom && !exercise.deletedAt;
+
+  const unit = data.preferences.weightUnit;
 
   const handleDelete = () => {
     Alert.alert(
@@ -108,6 +122,55 @@ export default function ExerciseDetailScreen() {
         </View>
       )}
 
+      <Text style={styles.sectionTitle}>Personal records</Text>
+      {records.heaviestWeight ||
+      records.bestEstimated1RM ||
+      records.mostRepsBodyweight ? (
+        <View style={styles.recordsCard}>
+          {records.heaviestWeight ? (
+            <Text style={styles.recordLine}>
+              Heaviest: {kgToUnit(records.heaviestWeight.weightKg ?? 0, unit)}{' '}
+              {unit} × {records.heaviestWeight.reps} reps
+            </Text>
+          ) : null}
+          {records.bestEstimated1RM ? (
+            <Text style={styles.recordLine}>
+              Est. 1RM:{' '}
+              {Math.round(kgToUnit(records.bestEstimated1RM.value, unit) * 10) /
+                10}{' '}
+              {unit}
+            </Text>
+          ) : null}
+          {records.mostRepsBodyweight ? (
+            <Text style={styles.recordLine}>
+              Most reps (bodyweight): {records.mostRepsBodyweight.reps} reps
+            </Text>
+          ) : null}
+        </View>
+      ) : (
+        <Text style={styles.emptyNote}>No logged sets yet.</Text>
+      )}
+
+      <Text style={styles.sectionTitle}>Recent workouts</Text>
+      {history.length === 0 ? (
+        <Text style={styles.emptyNote}>Not performed yet.</Text>
+      ) : (
+        history.map((workout) => (
+          <Link
+            key={workout.workoutId}
+            href={`/history/${workout.workoutId}`}
+            asChild
+          >
+            <Pressable style={styles.historyRow}>
+              <Text style={styles.historyName}>{workout.name}</Text>
+              <Text style={styles.historyDate}>
+                {workout.completedLocalDate}
+              </Text>
+            </Pressable>
+          </Link>
+        ))
+      )}
+
       {isEditable && !exercise.deletedAt ? (
         <Pressable
           style={[styles.deleteButton, busy && styles.disabled]}
@@ -151,6 +214,47 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   meta: {
+    color: '#666',
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  recordsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    padding: 12,
+    gap: 4,
+  },
+  recordLine: {
+    fontSize: 14,
+  },
+  emptyNote: {
+    color: '#666',
+    fontSize: 14,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    padding: 12,
+    marginBottom: 8,
+  },
+  historyName: {
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  historyDate: {
+    fontSize: 12,
     color: '#666',
   },
   deleteButton: {

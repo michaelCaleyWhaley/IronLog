@@ -25,6 +25,7 @@ import {
   addExerciseToWorkout,
   addSetToWorkout,
   completeWorkout,
+  deleteWorkout,
   discardWorkout,
   moveWorkoutExercise,
   removeExerciseFromWorkout,
@@ -432,6 +433,12 @@ export class DataRepository {
   async discardWorkout(workoutId: string): Promise<void> {
     await this.update((draft) => {
       discardWorkout(draft, workoutId);
+    });
+  }
+
+  async deleteWorkout(workoutId: string): Promise<void> {
+    await this.update((draft) => {
+      deleteWorkout(draft, workoutId);
     });
   }
 

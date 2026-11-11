@@ -1302,4 +1302,25 @@ a medium haptic and auto- feedback and optional
 starts the rest timer auto-start; both trigger on
 the preference. the false->true transition only.
 
+2026-11-10 Phase 5: history, PRs and stats are All derived data
+pure selectors over the comes from the workout
+completed-workout list. list per section 5.5;
+no denormalised
+records are stored.
+
+2026-11-10 Phase 5: streak is computed by Walks backwards from
+day-counting consecutive the latest workout date
+local dates ending at the over a set of
+latest workout date, completion dates;
+same-day duplicates count the stale-streak rule
+once. (last workout older
+than yesterday shows
+zero) is applied at read
+time per section 5.6.
+
+2026-11-10 Phase 5: bodyweight PR requires Sets with an
+weightKg to be absent. explicit 0 kg still
+counts as weighted;
+absent means bodyweight.
+
 ---

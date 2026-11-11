@@ -14,6 +14,7 @@ import { Chips } from '@/src/components/Chips';
 import { LIMITS } from '@/src/domain/limits';
 import type { PreferencesPatch } from '@/src/domain/preferences';
 import { formatRemaining } from '@/src/domain/restTimer';
+import { userStats } from '@/src/domain/stats';
 import type { WeightUnit } from '@/src/domain/types';
 import { useAppData } from '@/src/state/AppDataContext';
 
@@ -57,9 +58,29 @@ export default function ProfileScreen() {
       LIMITS.maxRestDurationSeconds,
     );
 
+  const stats = userStats(data);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Profile</Text>
+
+      <Text style={styles.section}>Statistics</Text>
+      <View style={styles.statsCard}>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{stats.totalWorkouts}</Text>
+          <Text style={styles.statLabel}>Total workouts</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{stats.currentStreakDays}</Text>
+          <Text style={styles.statLabel}>Day streak</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>
+            {stats.lastWorkoutLocalDate ?? '—'}
+          </Text>
+          <Text style={styles.statLabel}>Last workout</Text>
+        </View>
+      </View>
 
       <Text style={styles.section}>Units</Text>
       <Chips
@@ -186,6 +207,27 @@ const styles = StyleSheet.create({
     minWidth: 52,
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
+  },
+  statsCard: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    paddingVertical: 14,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: 2,
   },
   comingSoon: {
     color: '#666',
