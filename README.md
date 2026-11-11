@@ -20,6 +20,8 @@ See `docs/PLAN-v1-local-first` for the product and implementation plan.
 app/            Expo Router routes (screens and layouts)
 components/     Shared UI components
 constants/      App-wide constants
+src/domain/     Types, Zod schemas, seed data
+src/storage/    Local JSON persistence (repository, FileSystem adapter)
 docs/           Product and implementation plan
 assets/         Icons, splash screen, fonts
 ```

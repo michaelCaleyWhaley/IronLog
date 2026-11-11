@@ -1199,4 +1199,31 @@ SDK installed); run `npm run both platforms; run on
 ios` / `npm run android` device or simulator to
 confirm runtime.
 
+2026-11-10 Phase 1: added zod (runtime Matches the planned
+validation) and ulid (workout/ stack; both are small,
+routine/set IDs) zero-runtime-dependency
+packages.
+
+2026-11-10 Phase 1: writes go temp-file Keeps a known-good
+then same-directory rename backup and avoids
+on expo-file-system's new partially-written
+File/Paths API; previous primary files.
+content is copied to a
+backup before each
+replace.
+
+2026-11-10 Phase 1: schema starts at Documents created by
+version 1; migration pipeline this unreleased app
+accepts version 0 documents begin at v1, so the
+so the migration path can first real migration is
+be exercised before v2 registered when the
+exists. schema next evolves.
+
+2026-11-10 Phase 1: repository exposes a Persistence mechanics
+single generic update() are in place; typed
+domain mutation method domain operations
+for now; typed domain arrive with the feature
+methods (saveWorkout phases that need
+etc.) will wrap it. them.
+
 ---
