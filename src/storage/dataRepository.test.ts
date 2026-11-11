@@ -11,6 +11,7 @@ import {
   InvalidDocumentError,
 } from './errors';
 import { MemoryStore } from './memoryStore';
+import { MIGRATIONS } from './migrations';
 
 const FIXED_NOW = new Date('2026-11-10T12:00:00.000Z');
 
@@ -35,7 +36,7 @@ describe('DataRepository.initialise', () => {
 
     expect(result.status).toBe('created');
     const data = repo.getData();
-    expect(data.schemaVersion).toBe(1);
+    expect(data.schemaVersion).toBe(2);
     expect(data.exercises.length).toBeGreaterThan(50);
     expect(data.exercises.every((e) => !e.isCustom)).toBe(true);
     expect(data.preferences).toEqual({
@@ -69,7 +70,11 @@ describe('writes', () => {
         routineId: 'routine-1',
         name: 'Push Day',
         exercises: [
-          { exerciseId: 'push-up', order: 0, targetSets: 3, targetReps: 10 },
+          {
+            exerciseId: 'push-up',
+            order: 0,
+            sets: [{ reps: 10 }, { reps: 10 }, { reps: 10 }],
+          },
         ],
         createdAt: FIXED_NOW.toISOString(),
         updatedAt: FIXED_NOW.toISOString(),
@@ -142,8 +147,7 @@ describe('writes', () => {
           exercises: Array.from({ length: 31 }, (_, i) => ({
             exerciseId: `ex-${i}`,
             order: i,
-            targetSets: 3,
-            targetReps: 10,
+            sets: [{ reps: 10 }],
           })),
           createdAt: FIXED_NOW.toISOString(),
           updatedAt: FIXED_NOW.toISOString(),
@@ -257,7 +261,7 @@ describe('import/export', () => {
     await expect(repo.importJson(future)).rejects.toThrow(
       FutureSchemaVersionError,
     );
-    expect(repo.getData().schemaVersion).toBe(1);
+    expect(repo.getData().schemaVersion).toBe(2);
   });
 });
 
@@ -280,6 +284,8 @@ describe('schema versioning', () => {
     store.seed(PRIMARY_KEY, JSON.stringify(legacy));
 
     const migrations = {
+      // Chain into the real v1 -> v2 migration registered in MIGRATIONS.
+      1: MIGRATIONS[1] as (data: unknown) => unknown,
       0: (data: unknown) => {
         const doc = data as Record<string, unknown>;
         const prefs = doc.preferences as Record<string, unknown>;
@@ -298,11 +304,49 @@ describe('schema versioning', () => {
     const result = await repo.initialise();
 
     expect(result.status).toBe('loaded');
-    expect(repo.getData().schemaVersion).toBe(1);
+    expect(repo.getData().schemaVersion).toBe(2);
     expect(repo.getData().preferences.autoStartRestTimer).toBe(false);
     // The migrated document was persisted.
     const stored = JSON.parse(store.contents(PRIMARY_KEY) ?? '{}') as AppData;
-    expect(stored.schemaVersion).toBe(1);
+    expect(stored.schemaVersion).toBe(2);
+  });
+
+  it('migrates v1 routine targets into per-set targets', async () => {
+    const { store } = makeRepository();
+    // A v1 document stores targetSets/targetReps per routine exercise.
+    const legacy = createInitialDocument(FIXED_NOW) as unknown as Record<
+      string,
+      unknown
+    >;
+    legacy.schemaVersion = 1;
+    legacy.routines = [
+      {
+        routineId: 'routine-1',
+        name: 'Push Day',
+        exercises: [
+          {
+            exerciseId: 'push-up',
+            order: 0,
+            targetSets: 3,
+            targetReps: 12,
+          },
+        ],
+        createdAt: FIXED_NOW.toISOString(),
+        updatedAt: FIXED_NOW.toISOString(),
+      },
+    ];
+    store.seed(PRIMARY_KEY, JSON.stringify(legacy));
+
+    const repo = new DataRepository(store, { now: () => FIXED_NOW });
+    const result = await repo.initialise();
+
+    expect(result.status).toBe('loaded');
+    const routine = repo.getData().routines[0];
+    expect(routine?.exercises[0]?.sets).toEqual([
+      { reps: 12 },
+      { reps: 12 },
+      { reps: 12 },
+    ]);
   });
 
   it('rejects documents from a newer schema version without touching them', async () => {

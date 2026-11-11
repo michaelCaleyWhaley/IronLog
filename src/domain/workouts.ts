@@ -102,9 +102,13 @@ export function startWorkoutFromRoutine(
       exerciseId: entry.exerciseId,
       name: snapshotName(draft, entry.exerciseId),
       order: index,
-      sets: Array.from({ length: entry.targetSets }, () =>
-        emptySet(entry.targetReps),
-      ),
+      sets: entry.sets.map((target) => {
+        const set = emptySet(target.reps);
+        if (target.weightKg !== undefined) {
+          set.weightKg = target.weightKg;
+        }
+        return set;
+      }),
     }));
 
   const workout: Workout = {

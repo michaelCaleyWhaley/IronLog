@@ -15,7 +15,49 @@ import {
  */
 export type Migration = (data: unknown) => unknown;
 
-export const MIGRATIONS: Record<number, Migration> = {};
+/**
+ * v1 -> v2: routine exercises changed from `targetSets`/`targetReps`
+ * counts to a per-set `sets` array of { reps?, weightKg? } targets.
+ * Each prescribed set inherits the old targetReps; weight is unset.
+ */
+const migrateV1ToV2: Migration = (data) => {
+  const doc = data as {
+    schemaVersion?: unknown;
+    routines?: {
+      exercises?: {
+        exerciseId: string;
+        order: number;
+        targetSets?: number;
+        targetReps?: number;
+        sets?: unknown;
+      }[];
+    }[];
+  };
+  return {
+    ...doc,
+    schemaVersion: 2,
+    routines: (doc.routines ?? []).map((routine) => ({
+      ...routine,
+      exercises: (routine.exercises ?? []).map((exercise) => {
+        if (Array.isArray(exercise.sets)) {
+          return exercise;
+        }
+        const count = Math.max(0, Math.floor(exercise.targetSets ?? 0));
+        return {
+          exerciseId: exercise.exerciseId,
+          order: exercise.order,
+          sets: Array.from({ length: count }, () => ({
+            reps: exercise.targetReps,
+          })),
+        };
+      }),
+    })),
+  };
+};
+
+export const MIGRATIONS: Record<number, Migration> = {
+  1: migrateV1ToV2,
+};
 
 export interface MigrationContext {
   migrations?: Record<number, Migration>;

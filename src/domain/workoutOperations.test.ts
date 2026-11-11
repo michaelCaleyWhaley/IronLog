@@ -71,7 +71,14 @@ describe('workout creation', () => {
     const routine = await repo.createRoutine({
       name: 'Arm Day',
       exercises: [
-        { exerciseId: exercise.exerciseId, targetSets: 3, targetReps: 12 },
+        {
+          exerciseId: exercise.exerciseId,
+          sets: [
+            { reps: 12, weightKg: 40 },
+            { reps: 12, weightKg: 40 },
+            { reps: 10, weightKg: 45 },
+          ],
+        },
       ],
     });
 
@@ -85,6 +92,9 @@ describe('workout creation', () => {
     expect(entry?.sets).toHaveLength(3);
     expect(entry?.sets.every((s) => s.type === 'normal')).toBe(true);
     expect(entry?.sets[0]?.reps).toBe(12);
+    expect(entry?.sets[0]?.weightKg).toBe(40);
+    expect(entry?.sets[2]?.reps).toBe(10);
+    expect(entry?.sets[2]?.weightKg).toBe(45);
     expect(entry?.sets.every((s) => !s.completed)).toBe(true);
   });
 

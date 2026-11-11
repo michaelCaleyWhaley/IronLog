@@ -81,19 +81,15 @@ export const exerciseSchema = z.object({
   deletedAt: isoDateTime.optional(),
 });
 
+const routineSetTargetSchema = z.object({
+  reps,
+  weightKg,
+});
+
 export const routineExerciseSchema = z.object({
   exerciseId: id,
   order: z.number().int().min(0),
-  targetSets: z
-    .number()
-    .int()
-    .min(LIMITS.minTargetSets)
-    .max(LIMITS.maxTargetSets),
-  targetReps: z
-    .number()
-    .int()
-    .min(LIMITS.minTargetReps)
-    .max(LIMITS.maxTargetReps),
+  sets: z.array(routineSetTargetSchema).min(1).max(LIMITS.maxSetsPerExercise),
 });
 
 export const routineSchema = z

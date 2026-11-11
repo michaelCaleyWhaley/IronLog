@@ -12,7 +12,6 @@ import {
 
 import { Text } from '@/components/Themed';
 import { ExercisePickerModal } from '@/src/components/ExercisePickerModal';
-import { Stepper } from '@/src/components/Stepper';
 import { LIMITS } from '@/src/domain/limits';
 import type { RoutineExerciseInput } from '@/src/domain/routines';
 import {
@@ -20,7 +19,13 @@ import {
   listExercises,
   listRoutines,
 } from '@/src/domain/selectors';
-import type { AppData, RoutineExercise } from '@/src/domain/types';
+import type {
+  AppData,
+  RoutineExercise,
+  RoutineSetTarget,
+  WeightUnit,
+} from '@/src/domain/types';
+import { kgToUnit, unitToKg } from '@/src/domain/weight';
 import { useAppData } from '@/src/state/AppDataContext';
 
 const DEFAULT_TARGET_SETS = 3;
@@ -61,8 +66,7 @@ export default function RoutineDetailScreen() {
   const toInputs = (entries: RoutineExercise[]): RoutineExerciseInput[] =>
     entries.map((entry) => ({
       exerciseId: entry.exerciseId,
-      targetSets: entry.targetSets,
-      targetReps: entry.targetReps,
+      sets: entry.sets.map((set) => ({ ...set })),
     }));
 
   const saveExercises = async (inputs: RoutineExerciseInput[]) => {
@@ -71,12 +75,9 @@ export default function RoutineDetailScreen() {
     );
   };
 
-  const updateEntry = async (
-    index: number,
-    patch: Partial<Pick<RoutineExerciseInput, 'targetSets' | 'targetReps'>>,
-  ) => {
+  const updateEntrySets = async (index: number, sets: RoutineSetTarget[]) => {
     const inputs = toInputs(routine.exercises);
-    inputs[index] = { ...inputs[index], ...patch } as RoutineExerciseInput;
+    inputs[index] = { ...inputs[index], sets };
     await saveExercises(inputs);
   };
 
@@ -104,8 +105,9 @@ export default function RoutineDetailScreen() {
     } else {
       inputs.push({
         exerciseId,
-        targetSets: DEFAULT_TARGET_SETS,
-        targetReps: DEFAULT_TARGET_REPS,
+        sets: Array.from({ length: DEFAULT_TARGET_SETS }, () => ({
+          reps: DEFAULT_TARGET_REPS,
+        })),
       });
     }
     await saveExercises(inputs);
@@ -181,7 +183,7 @@ export default function RoutineDetailScreen() {
             data={data}
             onMove={moveEntry}
             onRemove={removeEntry}
-            onChangeTarget={updateEntry}
+            onChangeSets={updateEntrySets}
           />
         ))
       )}
@@ -203,6 +205,141 @@ export default function RoutineDetailScreen() {
   );
 }
 
+function parseNumber(text: string): number | null {
+  const trimmed = text.trim();
+  if (trimmed === '') {
+    return null;
+  }
+  const value = Number(trimmed);
+  return Number.isFinite(value) ? value : Number.NaN;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function SetTargetRow({
+  target,
+  setNumber,
+  weightUnit,
+  onChange,
+  onRemove,
+}: {
+  target: RoutineSetTarget;
+  setNumber: number;
+  weightUnit: WeightUnit;
+  onChange: (patch: RoutineSetTarget) => void;
+  onRemove?: () => void;
+}) {
+  const [repsText, setRepsText] = useState(
+    target.reps !== undefined ? String(target.reps) : '',
+  );
+  const [weightText, setWeightText] = useState(
+    target.weightKg !== undefined
+      ? String(Math.round(kgToUnit(target.weightKg, weightUnit) * 10) / 10)
+      : '',
+  );
+
+  // Re-sync when the committed values change externally. Comparing a
+  // signature avoids wiping in-progress typing on unrelated reloads.
+  const signature = `${target.reps}|${target.weightKg}`;
+  const [prevSignature, setPrevSignature] = useState(signature);
+  if (signature !== prevSignature) {
+    setPrevSignature(signature);
+    setRepsText(target.reps !== undefined ? String(target.reps) : '');
+    setWeightText(
+      target.weightKg !== undefined
+        ? String(Math.round(kgToUnit(target.weightKg, weightUnit) * 10) / 10)
+        : '',
+    );
+  }
+
+  const commitReps = () => {
+    const parsed = parseNumber(repsText);
+    if (parsed === null) {
+      onChange({ reps: undefined });
+      return;
+    }
+    if (Number.isNaN(parsed)) {
+      Alert.alert('Invalid value', 'Please enter a number.');
+      return;
+    }
+    onChange({
+      reps: clamp(Math.round(parsed), LIMITS.minReps, LIMITS.maxReps),
+    });
+  };
+
+  const commitWeight = () => {
+    const parsed = parseNumber(weightText);
+    if (parsed === null) {
+      onChange({ weightKg: undefined });
+      return;
+    }
+    if (Number.isNaN(parsed)) {
+      Alert.alert('Invalid value', 'Please enter a number.');
+      return;
+    }
+    const kg = unitToKg(parsed, weightUnit);
+    onChange({
+      weightKg: clamp(
+        Math.round(kg * 100) / 100,
+        LIMITS.minWeightKg,
+        LIMITS.maxWeightKg,
+      ),
+    });
+  };
+
+  return (
+    <View style={styles.setRow}>
+      <Text style={styles.setNumber}>Set {setNumber}</Text>
+      <View style={styles.setFields}>
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Reps</Text>
+          <TextInput
+            style={[styles.setInput, styles.repsInput]}
+            value={repsText}
+            onChangeText={setRepsText}
+            onEndEditing={commitReps}
+            onBlur={commitReps}
+            onSubmitEditing={commitReps}
+            keyboardType="number-pad"
+            placeholder="—"
+            placeholderTextColor="#bbb"
+            accessibilityLabel={`Set ${setNumber} target reps`}
+          />
+        </View>
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>
+            {weightUnit === 'lb' ? 'Weight (lb)' : 'Weight (kg)'}
+          </Text>
+          <TextInput
+            style={[styles.setInput, styles.weightInput]}
+            value={weightText}
+            onChangeText={setWeightText}
+            onEndEditing={commitWeight}
+            onBlur={commitWeight}
+            onSubmitEditing={commitWeight}
+            keyboardType="decimal-pad"
+            placeholder="—"
+            placeholderTextColor="#bbb"
+            accessibilityLabel={`Set ${setNumber} target weight`}
+          />
+        </View>
+      </View>
+      {onRemove ? (
+        <Pressable
+          onPress={onRemove}
+          style={styles.iconButton}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove set ${setNumber}`}
+        >
+          <Text style={[styles.iconText, styles.removeText]}>✕</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 function RoutineExerciseRow({
   entry,
   index,
@@ -210,7 +347,7 @@ function RoutineExerciseRow({
   data,
   onMove,
   onRemove,
-  onChangeTarget,
+  onChangeSets,
 }: {
   entry: RoutineExercise;
   index: number;
@@ -218,13 +355,30 @@ function RoutineExerciseRow({
   data: AppData;
   onMove: (index: number, direction: -1 | 1) => void;
   onRemove: (index: number) => void;
-  onChangeTarget: (
-    index: number,
-    patch: Partial<Pick<RoutineExerciseInput, 'targetSets' | 'targetReps'>>,
-  ) => void;
+  onChangeSets: (index: number, sets: RoutineSetTarget[]) => void;
 }) {
   const exercise = getExercise(data, entry.exerciseId);
   const name = exercise?.name ?? 'Unavailable exercise';
+  const weightUnit = data.preferences.weightUnit;
+
+  const updateSet = (setIndex: number, patch: RoutineSetTarget) => {
+    const sets = entry.sets.map((set, i) =>
+      i === setIndex ? { ...set, ...patch } : set,
+    );
+    onChangeSets(index, sets);
+  };
+
+  const removeSet = (setIndex: number) => {
+    onChangeSets(
+      index,
+      entry.sets.filter((_, i) => i !== setIndex),
+    );
+  };
+
+  const addSet = () => {
+    const last = entry.sets[entry.sets.length - 1];
+    onChangeSets(index, [...entry.sets, last ? { ...last } : {}]);
+  };
 
   return (
     <View style={styles.exerciseCard}>
@@ -261,36 +415,35 @@ function RoutineExerciseRow({
           </Pressable>
         </View>
       </View>
-      <View style={styles.targets}>
-        <View style={styles.targetGroup}>
-          <Text style={styles.targetLabel}>Sets</Text>
-          <Stepper
-            value={entry.targetSets}
-            min={LIMITS.minTargetSets}
-            max={LIMITS.maxTargetSets}
-            onDecrement={() =>
-              onChangeTarget(index, { targetSets: entry.targetSets - 1 })
-            }
-            onIncrement={() =>
-              onChangeTarget(index, { targetSets: entry.targetSets + 1 })
-            }
-          />
-        </View>
-        <View style={styles.targetGroup}>
-          <Text style={styles.targetLabel}>Reps</Text>
-          <Stepper
-            value={entry.targetReps}
-            min={LIMITS.minTargetReps}
-            max={LIMITS.maxTargetReps}
-            onDecrement={() =>
-              onChangeTarget(index, { targetReps: entry.targetReps - 1 })
-            }
-            onIncrement={() =>
-              onChangeTarget(index, { targetReps: entry.targetReps + 1 })
-            }
-          />
-        </View>
-      </View>
+      {entry.sets.map((set, setIndex) => (
+        <SetTargetRow
+          key={setIndex}
+          target={set}
+          setNumber={setIndex + 1}
+          weightUnit={weightUnit}
+          onChange={(patch) => updateSet(setIndex, patch)}
+          onRemove={
+            entry.sets.length > 1 ? () => removeSet(setIndex) : undefined
+          }
+        />
+      ))}
+      <Pressable
+        onPress={addSet}
+        disabled={entry.sets.length >= LIMITS.maxSetsPerExercise}
+        style={styles.addSetButton}
+        accessibilityRole="button"
+        accessibilityLabel={`Add set to ${name}`}
+      >
+        <Text
+          style={[
+            styles.addSetText,
+            entry.sets.length >= LIMITS.maxSetsPerExercise &&
+              styles.iconDisabled,
+          ]}
+        >
+          + Add set
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -380,19 +533,53 @@ const styles = StyleSheet.create({
   removeText: {
     color: '#b00020',
   },
-  targets: {
-    flexDirection: 'row',
-    gap: 24,
-    marginTop: 10,
-  },
-  targetGroup: {
+  setRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 8,
     gap: 8,
   },
-  targetLabel: {
-    fontSize: 13,
+  setNumber: {
+    width: 44,
+    fontSize: 12,
     color: '#666',
+  },
+  setFields: {
+    flexDirection: 'row',
+    gap: 8,
+    flex: 1,
+  },
+  field: {
+    gap: 2,
+  },
+  fieldLabel: {
+    fontSize: 10,
+    color: '#888',
+    textTransform: 'uppercase',
+  },
+  setInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  repsInput: {
+    width: 64,
+  },
+  weightInput: {
+    width: 76,
+  },
+  addSetButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  addSetText: {
+    color: '#2f95dc',
+    fontWeight: '600',
+    fontSize: 13,
   },
   deleteButton: {
     borderWidth: 1,

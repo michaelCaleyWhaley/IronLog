@@ -1344,3 +1344,16 @@ document picker into before replacing data.
 the repository.
 
 ---
+
+2026-11-10 Routine set targets: RoutineExercise now
+stores a per-set `sets` array of
+{ reps?, weightKg? } instead of
+targetSets/targetReps counts, so each
+planned set can carry its own weight
+and rep target. Schema bumped to v2;
+the v1 -> v2 migration expands each
+old targetSets count into that many
+sets inheriting targetReps (weight
+unset). Routine-derived workouts
+pre-fill each generated set's reps
+and weightKg from its target.

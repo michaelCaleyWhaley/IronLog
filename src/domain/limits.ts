@@ -13,8 +13,4 @@ export const LIMITS = {
   maxRoutines: 50,
   minRestDurationSeconds: 0,
   maxRestDurationSeconds: 3600,
-  minTargetSets: 1,
-  maxTargetSets: 20,
-  minTargetReps: 1,
-  maxTargetReps: 1000,
 } as const;

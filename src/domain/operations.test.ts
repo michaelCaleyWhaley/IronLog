@@ -36,6 +36,12 @@ const VALID_EXERCISE = {
   equipment: 'dumbbell' as Equipment,
 };
 
+function targets(count: number, reps?: number) {
+  return Array.from({ length: count }, () =>
+    reps === undefined ? {} : { reps },
+  );
+}
+
 describe('exercise operations', () => {
   it('creates a custom exercise and persists it', async () => {
     const { repo, store } = makeRepository();
@@ -176,16 +182,17 @@ describe('routine operations', () => {
     const routine = await repo.createRoutine({
       name: 'Push Day',
       exercises: [
-        { exerciseId: ids[2], targetSets: 4, targetReps: 8 },
-        { exerciseId: ids[0], targetSets: 3, targetReps: 12 },
-        { exerciseId: ids[1], targetSets: 3, targetReps: 10 },
+        { exerciseId: ids[2], sets: targets(4, 8) },
+        { exerciseId: ids[0], sets: targets(3, 12) },
+        { exerciseId: ids[1], sets: targets(3, 10) },
       ],
     });
 
     expect(routine.exercises).toHaveLength(3);
     expect(routine.exercises[0]?.exerciseId).toBe(ids[2]);
     expect(routine.exercises[0]?.order).toBe(0);
-    expect(routine.exercises[0]?.targetSets).toBe(4);
+    expect(routine.exercises[0]?.sets).toHaveLength(4);
+    expect(routine.exercises[0]?.sets[0]?.reps).toBe(8);
 
     // Persisted across restart.
     const stored = repo
@@ -200,8 +207,8 @@ describe('routine operations', () => {
       repo.createRoutine({
         name: 'Bad',
         exercises: [
-          { exerciseId: ids[0], targetSets: 3, targetReps: 10 },
-          { exerciseId: ids[0], targetSets: 3, targetReps: 10 },
+          { exerciseId: ids[0], sets: targets(3, 10) },
+          { exerciseId: ids[0], sets: targets(3, 10) },
         ],
       }),
     ).rejects.toThrow();
@@ -213,9 +220,7 @@ describe('routine operations', () => {
     await expect(
       repo.createRoutine({
         name: 'Bad',
-        exercises: [
-          { exerciseId: 'does-not-exist', targetSets: 3, targetReps: 10 },
-        ],
+        exercises: [{ exerciseId: 'does-not-exist', sets: targets(3, 10) }],
       }),
     ).rejects.toThrow(ExerciseNotFoundError);
 
@@ -223,7 +228,7 @@ describe('routine operations', () => {
     await expect(
       repo.createRoutine({
         name: 'Bad',
-        exercises: [{ exerciseId: ids[0], targetSets: 3, targetReps: 10 }],
+        exercises: [{ exerciseId: ids[0], sets: targets(3, 10) }],
       }),
     ).rejects.toThrow(ExerciseNotSelectableError);
   });
@@ -237,8 +242,7 @@ describe('routine operations', () => {
         name: 'Too big',
         exercises: Array.from({ length: 31 }, () => ({
           exerciseId: ids[0],
-          targetSets: 3,
-          targetReps: 10,
+          sets: targets(3, 10),
         })),
       }),
     ).rejects.toThrow();
@@ -256,14 +260,14 @@ describe('routine operations', () => {
     const { repo, ids } = await repoWithExercises(2);
     const routine = await repo.createRoutine({
       name: 'Old name',
-      exercises: [{ exerciseId: ids[0], targetSets: 3, targetReps: 10 }],
+      exercises: [{ exerciseId: ids[0], sets: targets(3, 10) }],
     });
 
     const renamed = await repo.updateRoutine(routine.routineId, {
       name: 'New name',
       exercises: [
-        { exerciseId: ids[1], targetSets: 5, targetReps: 5 },
-        { exerciseId: ids[0], targetSets: 3, targetReps: 10 },
+        { exerciseId: ids[1], sets: targets(5, 5) },
+        { exerciseId: ids[0], sets: targets(3, 10) },
       ],
     });
     expect(renamed.name).toBe('New name');
@@ -276,13 +280,37 @@ describe('routine operations', () => {
     ).rejects.toThrow(RoutineNotFoundError);
   });
 
-  it('rejects out-of-range target sets/reps via schema validation', async () => {
+  it('rejects invalid set targets via schema validation', async () => {
     const { repo, ids } = await repoWithExercises(1);
 
+    // Empty set list is below the minimum of one prescribed set.
     await expect(
       repo.createRoutine({
         name: 'Legs',
-        exercises: [{ exerciseId: ids[0], targetSets: 0, targetReps: 10 }],
+        exercises: [{ exerciseId: ids[0], sets: targets(0, 10) }],
+      }),
+    ).rejects.toThrow(DataValidationError);
+
+    // Out-of-range reps.
+    await expect(
+      repo.createRoutine({
+        name: 'Legs',
+        exercises: [
+          { exerciseId: ids[0], sets: [{ reps: LIMITS.maxReps + 1 }] },
+        ],
+      }),
+    ).rejects.toThrow(DataValidationError);
+
+    // Out-of-range weight.
+    await expect(
+      repo.createRoutine({
+        name: 'Legs',
+        exercises: [
+          {
+            exerciseId: ids[0],
+            sets: [{ reps: 10, weightKg: LIMITS.maxWeightKg + 1 }],
+          },
+        ],
       }),
     ).rejects.toThrow(DataValidationError);
     expect(repo.getData().routines).toHaveLength(0);

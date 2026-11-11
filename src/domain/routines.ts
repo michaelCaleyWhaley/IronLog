@@ -7,12 +7,16 @@ import {
 } from './errors';
 import { newId } from './id';
 import { LIMITS } from './limits';
-import type { AppData, Routine, RoutineExercise } from './types';
+import type {
+  AppData,
+  Routine,
+  RoutineExercise,
+  RoutineSetTarget,
+} from './types';
 
 export interface RoutineExerciseInput {
   exerciseId: string;
-  targetSets: number;
-  targetReps: number;
+  sets: RoutineSetTarget[];
 }
 
 export interface RoutineInput {
@@ -77,8 +81,16 @@ function toRoutineExercises(inputs: RoutineExerciseInput[]): RoutineExercise[] {
   return inputs.map((input, index) => ({
     exerciseId: input.exerciseId,
     order: index,
-    targetSets: input.targetSets,
-    targetReps: input.targetReps,
+    sets: input.sets.map((set) => {
+      const target: RoutineSetTarget = {};
+      if (set.reps !== undefined) {
+        target.reps = set.reps;
+      }
+      if (set.weightKg !== undefined) {
+        target.weightKg = set.weightKg;
+      }
+      return target;
+    }),
   }));
 }
 

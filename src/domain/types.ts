@@ -42,7 +42,7 @@ export const WORKOUT_STATUSES = ['active', 'completed'] as const;
 
 export type WorkoutStatus = (typeof WORKOUT_STATUSES)[number];
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export interface Preferences {
   weightUnit: WeightUnit;
@@ -61,11 +61,16 @@ export interface Exercise {
   deletedAt?: string;
 }
 
+/** A prescribed set in a routine: optional target reps and weight (kg). */
+export interface RoutineSetTarget {
+  reps?: number;
+  weightKg?: number;
+}
+
 export interface RoutineExercise {
   exerciseId: string;
   order: number;
-  targetSets: number;
-  targetReps: number;
+  sets: RoutineSetTarget[];
 }
 
 export interface Routine {
