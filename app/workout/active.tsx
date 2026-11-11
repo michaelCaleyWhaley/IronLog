@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -11,8 +12,10 @@ import {
 
 import { Text } from '@/components/Themed';
 import { ExercisePickerModal } from '@/src/components/ExercisePickerModal';
+import { RestTimerCard } from '@/src/components/RestTimerCard';
 import { WorkoutSetRow } from '@/src/components/WorkoutSetRow';
 import { LIMITS } from '@/src/domain/limits';
+import { shouldAutoStartRest } from '@/src/domain/restTimer';
 import {
   getActiveWorkout,
   listExercises,
@@ -22,6 +25,10 @@ import type { SetType, WorkoutExercise } from '@/src/domain/types';
 import { SET_TYPES } from '@/src/domain/types';
 import type { WorkoutSetPatch } from '@/src/domain/workouts';
 import { useAppData } from '@/src/state/AppDataContext';
+import {
+  restTimerAutoStart,
+  restTimerSyncPreference,
+} from '@/src/state/restTimerStore';
 
 function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
@@ -52,6 +59,14 @@ export default function ActiveWorkoutScreen() {
     () => (data ? getActiveWorkout(data) : undefined),
     [data],
   );
+
+  // Keep the timer's configured duration in step with the preference.
+  const defaultRestDuration = data?.preferences.defaultRestDuration;
+  useEffect(() => {
+    if (defaultRestDuration !== undefined) {
+      restTimerSyncPreference(defaultRestDuration);
+    }
+  }, [defaultRestDuration]);
 
   if (status === 'loading') {
     return (
@@ -158,6 +173,7 @@ export default function ActiveWorkoutScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        <RestTimerCard />
         {workout.exercises.length === 0 ? (
           <Text style={styles.empty}>
             No exercises yet — tap “Add exercise” below.
@@ -234,18 +250,27 @@ export default function ActiveWorkoutScreen() {
                   ),
                 )
               }
-              onToggleComplete={(setId, completed) =>
+              onToggleComplete={(setId, completed) => {
+                const nextCompleted = !completed;
+                if (nextCompleted) {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
+                    () => {},
+                  );
+                  if (shouldAutoStartRest(data.preferences)) {
+                    restTimerAutoStart(data.preferences.defaultRestDuration);
+                  }
+                }
                 void runMutation(() =>
                   mutate((repo) =>
                     repo.updateWorkoutSet(
                       workout.workoutId,
                       entry.exerciseId,
                       setId,
-                      { completed: !completed },
+                      { completed: nextCompleted },
                     ),
                   ),
-                )
-              }
+                );
+              }}
               onDeleteSet={(setId) =>
                 void runMutation(() =>
                   mutate((repo) =>

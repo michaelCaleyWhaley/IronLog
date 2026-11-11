@@ -1280,4 +1280,26 @@ reads the single active so restart recovery is
 workout from the document. discoverable without a
 separate prompt flow.
 
+2026-11-10 Phase 4: rest timer state is pure Timer transitions are
+functions in unit-tested like the rest of the
+domain/restTimer.ts driven domain; the React
+by an in-memory store in bindings live in
+src/state/restTimerStore.ts. src/state so UI stays
+thin. Per the plan the
+timer is not persisted;
+it survives navigation
+within the JS session.
+
+2026-11-10 Phase 4: haptics via expo-haptics Expo module works on
+iOS and Android without
+platform branching; failures
+are swallowed so
+unsupported devices are
+unaffected.
+
+2026-11-10 Phase 4: completing a set fires The plan requires haptic
+a medium haptic and auto- feedback and optional
+starts the rest timer auto-start; both trigger on
+the preference. the false->true transition only.
+
 ---

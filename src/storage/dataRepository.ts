@@ -5,12 +5,15 @@ import {
   updateCustomExercise,
 } from '../domain/exercises';
 import { createInitialDocument } from '../domain/initialDocument';
+import type { PreferencesPatch } from '../domain/preferences';
+import { updatePreferences } from '../domain/preferences';
 import type { RoutineInput, RoutinePatch } from '../domain/routines';
 import { addRoutine, deleteRoutine, updateRoutine } from '../domain/routines';
 import { safeParseAppData } from '../domain/schemas';
 import type {
   AppData,
   Exercise,
+  Preferences,
   Routine,
   Workout,
   WorkoutExercise,
@@ -282,6 +285,16 @@ export class DataRepository {
     await this.update((draft) => {
       deleteRoutine(draft, routineId);
     });
+  }
+
+  // ---- Preferences -----------------------------------------------------
+
+  async updatePreferences(patch: PreferencesPatch): Promise<Preferences> {
+    const holder: { preferences?: Preferences } = {};
+    await this.update((draft) => {
+      holder.preferences = updatePreferences(draft, patch);
+    });
+    return holder.preferences as Preferences;
   }
 
   // ---- Workouts --------------------------------------------------------
