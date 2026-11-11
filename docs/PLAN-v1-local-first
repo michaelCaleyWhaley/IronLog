@@ -1323,4 +1323,24 @@ weightKg to be absent. explicit 0 kg still
 counts as weighted;
 absent means bodyweight.
 
+2026-11-10 Phase 6: bundle identifiers set to Store listings need a
+com.michaelcaleywhaley.ironlog stable reverse-domain
+for both iOS and Android; ID, replacing the
+com.anonymous.ironlog Expo
+placeholder.
+
+2026-11-10 Phase 6: eas.json uses remote App Store Connect /
+appVersionSource with Play Console remain
+auto-increment for manual steps; the
+production builds. config covers dev
+client, internal preview
+and production profiles.
+
+2026-11-10 Phase 6: export writes to the Export shares a timestamped
+cache directory then file via the OS share
+expo-sharing; import reads sheet; import validates
+a picked JSON file via the through the repository
+document picker into before replacing data.
+the repository.
+
 ---

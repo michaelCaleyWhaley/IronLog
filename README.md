@@ -50,3 +50,23 @@ npm test             # vitest run
 npm run format       # prettier --write .
 npm run format:check # prettier --check .
 ```
+
+## Data & backup
+
+All app data lives in a single JSON document in the app's private
+documents directory (`ironlog-data.json`), with a backup copy kept
+alongside it for corruption recovery. There is no cloud sync.
+
+- **Export:** Profile tab → _Export data (JSON)_ writes a timestamped
+  backup you can save to Files, AirDrop, Drive, etc.
+- **Import:** Profile tab → _Import data (JSON)_ replaces all local
+  data with a previously exported file (validated before applying;
+  the current data is preserved if the file is invalid).
+
+Because there is no server-side copy, exporting regularly is the
+only backup. Consider exporting after meaningful workout blocks.
+
+## Release builds
+
+EAS Build is configured in `eas.json` (`development`, `preview`,
+`production` profiles). See `docs/RELEASE-CHECKLIST.md`.

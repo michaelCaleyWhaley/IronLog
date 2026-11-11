@@ -8,7 +8,9 @@
     "scheme": "ironlog",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.michaelcaleywhaley.ironlog",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +20,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.ironlog"
+      "package": "com.michaelcaleywhaley.ironlog",
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
@@ -29,7 +32,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

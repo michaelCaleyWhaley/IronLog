@@ -315,3 +315,64 @@ describe('schema versioning', () => {
     expect(store.contents(PRIMARY_KEY)).toBe(futureJson);
   });
 });
+
+describe('large document performance', () => {
+  function bigDocument(): AppData {
+    const doc = createInitialDocument(FIXED_NOW);
+    const exerciseId = doc.exercises[0]?.exerciseId ?? 'ex-1';
+    for (let i = 0; i < 300; i += 1) {
+      const day = String((i % 28) + 1).padStart(2, '0');
+      const stamp = `2026-01-${day}T10:00:00.000Z`;
+      doc.workouts.push({
+        workoutId: `perf-${i}`,
+        name: `Workout ${i}`,
+        startedAt: stamp,
+        completedAt: `2026-01-${day}T11:00:00.000Z`,
+        completedLocalDate: `2026-01-${day}`,
+        status: 'completed',
+        exercises: [
+          {
+            exerciseId,
+            name: 'Exercise',
+            order: 0,
+            sets: [
+              {
+                setId: `perf-set-${i}`,
+                type: 'normal',
+                completed: true,
+                reps: 5,
+                weightKg: 100,
+              },
+            ],
+          },
+        ],
+        createdAt: stamp,
+        updatedAt: stamp,
+      });
+    }
+    return doc;
+  }
+
+  it('initialises and updates a 300-workout document promptly', async () => {
+    const { store } = makeRepository();
+    store.seed(PRIMARY_KEY, JSON.stringify(bigDocument()));
+    const { repo } = makeRepository(store);
+
+    const initStart = performance.now();
+    await repo.initialise();
+    const initMs = performance.now() - initStart;
+
+    const updateStart = performance.now();
+    await repo.update((draft) => {
+      draft.workouts[0]!.name = 'Renamed';
+    });
+    const updateMs = performance.now() - updateStart;
+
+    expect(repo.getData().workouts).toHaveLength(300);
+    // Loose bounds: this is a smoke check, not a benchmark. A single-user
+    // JSON document of this size should validate and write in well under
+    // a second on-device; 5s leaves huge headroom for slow CI machines.
+    expect(initMs).toBeLessThan(5000);
+    expect(updateMs).toBeLessThan(5000);
+  });
+});

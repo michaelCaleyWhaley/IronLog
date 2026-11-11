@@ -1,3 +1,7 @@
+import Constants from 'expo-constants';
+import * as DocumentPicker from 'expo-document-picker';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -57,6 +61,52 @@ export default function ProfileScreen() {
       Math.max(seconds, LIMITS.minRestDurationSeconds),
       LIMITS.maxRestDurationSeconds,
     );
+
+  const handleExport = async () => {
+    setBusy(true);
+    try {
+      const json = await mutate(async (repo) => repo.exportJson());
+      const stamp = new Date().toISOString().slice(0, 10);
+      const file = new File(Paths.cache, `ironlog-backup-${stamp}.json`);
+      if (!file.exists) {
+        file.create({ overwrite: true });
+      }
+      await file.write(json);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Export ironLog data',
+        });
+      } else {
+        Alert.alert('Export', `Backup written to ${file.uri}`);
+      }
+    } catch (error) {
+      Alert.alert('Export failed', String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleImport = async () => {
+    setBusy(true);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+      const asset = result.assets[0];
+      const text = await new File(asset.uri).text();
+      await mutate((repo) => repo.importJson(text));
+      Alert.alert('Import complete', 'Your data was restored.');
+    } catch (error) {
+      Alert.alert('Import failed', String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const stats = userStats(data);
 
@@ -141,8 +191,23 @@ export default function ProfileScreen() {
       </View>
 
       <Text style={styles.section}>Data</Text>
-      <Text style={styles.comingSoon}>
-        Export, import and statistics are on the way.
+      <Pressable
+        style={[styles.dataButton, busy && styles.disabled]}
+        disabled={busy}
+        onPress={() => void handleExport()}
+      >
+        <Text style={styles.dataButtonText}>Export data (JSON)</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.dataButton, busy && styles.disabled]}
+        disabled={busy}
+        onPress={() => void handleImport()}
+      >
+        <Text style={styles.dataButtonText}>Import data (JSON)</Text>
+      </Pressable>
+      <Text style={styles.versionNote}>
+        ironLog {Constants.expoConfig?.version ?? ''} · data schema v
+        {data.schemaVersion}
       </Text>
     </ScrollView>
   );
@@ -229,8 +294,25 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
-  comingSoon: {
-    color: '#666',
+  dataButton: {
+    borderWidth: 1,
+    borderColor: '#2f95dc',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
     marginTop: 8,
+  },
+  dataButtonText: {
+    color: '#2f95dc',
+    fontWeight: '600',
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  versionNote: {
+    color: '#999',
+    fontSize: 12,
+    marginTop: 16,
+    textAlign: 'center',
   },
 });

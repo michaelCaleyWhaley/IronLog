@@ -112,7 +112,12 @@ export function WorkoutSetRow({
     <View style={[styles.card, set.completed && styles.cardCompleted]}>
       <View style={styles.headerRow}>
         <Text style={styles.setNumber}>{setNumber}</Text>
-        <Pressable onPress={onCycleType} style={styles.typeChip}>
+        <Pressable
+          onPress={onCycleType}
+          style={styles.typeChip}
+          accessibilityRole="button"
+          accessibilityLabel={`Set ${setNumber} type: ${setTypeLabel(set.type)}. Tap to change.`}
+        >
           <Text
             style={[styles.typeText, typeColor ? { color: typeColor } : null]}
           >
@@ -120,12 +125,26 @@ export function WorkoutSetRow({
           </Text>
         </Pressable>
         <View style={styles.headerActions}>
-          <Pressable onPress={onToggleComplete} style={styles.doneButton}>
+          <Pressable
+            onPress={onToggleComplete}
+            style={styles.doneButton}
+            accessibilityRole="button"
+            accessibilityLabel={
+              set.completed
+                ? `Mark set ${setNumber} incomplete`
+                : `Mark set ${setNumber} complete`
+            }
+          >
             <Text style={[styles.doneText, set.completed && styles.doneActive]}>
               {set.completed ? '✓' : '○'}
             </Text>
           </Pressable>
-          <Pressable onPress={onDelete} style={styles.deleteButton}>
+          <Pressable
+            onPress={onDelete}
+            style={styles.deleteButton}
+            accessibilityRole="button"
+            accessibilityLabel={`Delete set ${setNumber}`}
+          >
             <Text style={styles.deleteText}>✕</Text>
           </Pressable>
         </View>
@@ -204,6 +223,7 @@ function LabeledInput({
         keyboardType={keyboardType}
         placeholder="—"
         placeholderTextColor="#bbb"
+        accessibilityLabel={label}
       />
     </View>
   );
